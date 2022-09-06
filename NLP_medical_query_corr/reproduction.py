@@ -39,7 +39,7 @@ in_feat = 100
 dropout_prob = 0.1
 
 # 训练参数
-train_batch_size: = 64
+train_batch_size = 64
 eval_batch_size = 32
 num_train_epochs = 27
 learning_rate = 1e-3
