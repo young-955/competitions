@@ -30,100 +30,7 @@ class InputExample:
 
     def to_json_string(self):
         return json.dumps(dataclasses.asdict(self), indent=2) + "\n"
-# %%
 
-@dataclass
-class DataTrainingArguments:
-
-    w2v_file: str = field(
-        default='tencent-ailab-embedding-zh-d100-v0.2.0-s/tencent-ailab-embedding-zh-d100-v0.2.0-s.txt',
-        metadata={'help': 'The pretrained word2vec model directory'}
-    )
-    data_dir: str = field(
-        default='KUAKE-QQR',
-        metadata={'help': 'The data directory'}
-    )
-
-    def __str__(self):
-        self_as_dict = dataclasses.asdict(self)
-        attrs_as_str = [f"{k}={v},\n" for k, v in sorted(self_as_dict.items())]
-        return f"{self.__class__.__name__}(\n{''.join(attrs_as_str)})"
-        
-    def to_json_string(self):
-        """Serializes this instance to a JSON string."""
-        return json.dumps(dataclasses.asdict(self), indent=2) + "\n"
-
-
-@dataclass
-class ModelArguments:
-
-    in_feat: int = field(
-        default=100,
-        metadata={'help': 'Size of input sample.'}
-    )
-    dropout_prob: float = field(
-        default=0.1,
-        metadata={'help': 'Dropout probability.'}
-    )
-
-    def __str__(self):
-        self_as_dict = dataclasses.asdict(self)
-        attrs_as_str = [f"{k}={v},\n" for k, v in sorted(self_as_dict.items())]
-        return f"{self.__class__.__name__}(\n{''.join(attrs_as_str)})"
-        
-    def to_json_string(self):
-        """Serializes this instance to a JSON string."""
-        return json.dumps(dataclasses.asdict(self), indent=2) + "\n"
-
-
-@dataclass
-class TrainingArguments:
-
-    output_dir: str = field(
-        default='output_data/',
-        metadata={'help': 'The output directory where the model predictions and checkpoints will be written.'}
-    )
-    train_batch_size: int = field(
-        default=64,
-        metadata={'help': 'batch size for training'}
-    )
-    eval_batch_size: int = field(
-        default=32,
-        metadata={'help': 'batch size for evaluation'}
-    )
-    num_train_epochs: int = field(
-        default=27,
-        metadata={"help": "The total number of training epochs"}
-    )
-    learning_rate: float = field(
-        default=1e-3,
-        metadata={'help': '"The initial learning rate for AdamW.'}
-    )
-    weight_decay: float = field(
-        default=5e-4,
-        metadata={"help": "Weight decay for AdamW"}
-    )
-    logging_steps: int = field(
-        default=50,
-        metadata={'help': 'logging states every X updates steps.'}
-    )
-    eval_steps: int = field(
-        default=100,
-        metadata={'help': 'Run an evaluation every X steps.'}
-    )
-    device: str = field(
-        default='cuda',
-        metadata={"help": 'The device used for training'}
-    )
-
-    def __str__(self):
-        self_as_dict = dataclasses.asdict(self)
-        attrs_as_str = [f"{k}={v},\n" for k, v in sorted(self_as_dict.items())]
-        return f"{self.__class__.__name__}(\n{''.join(attrs_as_str)})"
-        
-    def to_json_string(self):
-        """Serializes this instance to a JSON string."""
-        return json.dumps(dataclasses.asdict(self), indent=2) + "\n"
 # %%
 class QQRDataset(Dataset):
 
@@ -197,7 +104,7 @@ class QQRDataset(Dataset):
         
         example = self.examples[index]
         label = None
-        if example.label is not None:
+        if example.label is not None and example.label != "":
             label = self.label2id[example.label]
 
         # tokenize
@@ -282,7 +189,7 @@ class Encoder(nn.Module):
         self.lstm = nn.LSTM(input_size=in_feat, hidden_size=in_feat, bidirectional=True, batch_first=True)
 
     def forward(self, token_embeds, attention_mask):
-        batch_size = attention_mask.size(0)
+        # batch_size = attention_mask.size(0)
         output, (h, c) = self.lstm(token_embeds)
         output, lens_output = pad_packed_sequence(output, batch_first=True)   # [B, L, H]
         
@@ -407,7 +314,6 @@ class SemAttn(nn.Module):
         text_b_attention_mask: torch.Tensor, 
         labels=None
     ):
-
         text_a_vecs = self.word_embedding(text_a_input_ids)
         text_b_vecs = self.word_embedding(text_b_input_ids)
 
@@ -444,14 +350,15 @@ class SemAttn(nn.Module):
         return (loss, logits) if loss is not None else logits
 # %%
 def create_optimizer_and_lr_scheduler(
-    args: TrainingArguments,
+    learning_rate,
+    weight_decay,
     model: nn.Module
 ):
     # 构建优化器
     optimizer = AdamW(
         model.parameters(), 
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay,
+        lr=learning_rate,
+        weight_decay=weight_decay,
     )
     # 构建学习率调度器
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=3, T_mult=2, eta_min=1e-5)
@@ -477,7 +384,7 @@ def simple_accuracy(preds, labels):
     
 
 def evaluate(
-    args: TrainingArguments,
+    device,
     model: nn.Module,
     eval_dataloader
 ):
@@ -487,7 +394,7 @@ def evaluate(
     labels_list = []
 
     for item in eval_dataloader:
-        inputs = _prepare_input(item, device=args.device)
+        inputs = _prepare_input(item, device=device)
 
         with torch.no_grad():
             outputs = model(**inputs)
@@ -510,7 +417,15 @@ def evaluate(
 
 
 def train(
-    args: TrainingArguments,
+    train_batch_size,
+    eval_batch_size,
+    num_train_epochs,
+    device,
+    output_dir,
+    learning_rate,
+    weight_decay,
+    logging_steps,
+    eval_steps,
     model: nn.Module,
     train_dataset,
     dev_dataset,
@@ -520,13 +435,13 @@ def train(
     # initialize dataloader
     train_dataloader = DataLoader(
         dataset=train_dataset, 
-        batch_size=args.train_batch_size,
+        batch_size=train_batch_size,
         shuffle=True,
         collate_fn=data_collator
     )
     dev_dataloader = DataLoader(
         dataset=dev_dataset,
-        batch_size=args.eval_batch_size,
+        batch_size=eval_batch_size,
         shuffle=False,
         collate_fn=data_collator
     )
@@ -535,17 +450,17 @@ def train(
     num_update_steps_per_epoch = len(train_dataloader)
     num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1)
     
-    max_steps = math.ceil(args.num_train_epochs * num_update_steps_per_epoch)
-    num_train_epochs = math.ceil(args.num_train_epochs)
-    num_train_samples = len(train_dataset) * args.num_train_epochs
+    max_steps = math.ceil(num_train_epochs * num_update_steps_per_epoch)
+    num_train_epochs = math.ceil(num_train_epochs)
+    num_train_samples = len(train_dataset) * num_train_epochs
 
-    optimizer, lr_scheduler = create_optimizer_and_lr_scheduler(args, model)
+    optimizer, lr_scheduler = create_optimizer_and_lr_scheduler(learning_rate, weight_decay, model)
 
     print("***** Running training *****")
     print(f"  Num examples = {num_examples}")
-    print(f"  Num Epochs = {args.num_train_epochs}")
-    print(f"  Instantaneous batch size per device = {args.train_batch_size}")
-    print(f"  Total train batch size (w. parallel, distributed & accumulation) = {args.train_batch_size}")
+    print(f"  Num Epochs = {num_train_epochs}")
+    print(f"  Instantaneous batch size per device = {train_batch_size}")
+    print(f"  Total train batch size (w. parallel, distributed & accumulation) = {train_batch_size}")
     print(f"  Total optimization steps = {max_steps}")
 
     model.zero_grad()
@@ -557,7 +472,7 @@ def train(
 
     for epoch in range(num_train_epochs):
         for step, item in enumerate(train_dataloader):
-            inputs = _prepare_input(item, device=args.device)
+            inputs = _prepare_input(item, device=device)
             outputs = model(**inputs)
             loss = outputs[0]
 
@@ -568,25 +483,26 @@ def train(
             model.zero_grad()
             global_steps += 1
 
-            if global_steps % args.logging_steps == 0:
+            if global_steps % logging_steps == 0:
                 print(f'Training: Epoch {epoch + 1}/{num_train_epochs} - Step {(step + 1)} - Loss {loss}')
 
-            if global_steps % args.eval_steps == 0:
+            if global_steps % eval_steps == 0:
                 
-                loss, acc = evaluate(args, model, dev_dataloader)
+                loss, acc = evaluate(device, model, dev_dataloader)
                 print(f'Evaluation: Epoch {epoch + 1}/{num_train_epochs} - Step {(global_steps + 1)} - Loss {loss} - Accuracy {acc}')
 
                 if acc > best_metric:
                     best_metric = acc
                     best_steps = global_steps
                     
-                    saved_path = os.path.join(args.output_dir, f'checkpoint-{best_steps}.pt')
+                    saved_path = os.path.join(output_dir, f'checkpoint-{best_steps}.pt')
                     torch.save(model.state_dict(), saved_path)
 
     return best_steps, best_metric
 # %%
 def predict(
-    args: TrainingArguments,
+    eval_batch_size,
+    device,
     model: nn.Module,
     test_dataset,
     data_collator
@@ -594,7 +510,7 @@ def predict(
     
     test_dataloader = DataLoader(
         dataset=test_dataset,
-        batch_size=args.eval_batch_size,
+        batch_size=eval_batch_size,
         shuffle=False,
         collate_fn=data_collator
     )
@@ -603,7 +519,7 @@ def predict(
     preds_list = []
 
     for item in test_dataloader:
-        inputs = _prepare_input(item, device=args.device)
+        inputs = _prepare_input(item, device=device)
 
         with torch.no_grad():
             outputs = model(**inputs)
@@ -631,83 +547,125 @@ def generate_commit(output_dir, task_name, test_dataset, preds: List[int]):
     
     with open(os.path.join(output_dir, f'{task_name}_test.json'), 'w', encoding='utf-8') as f:
         json.dump(pred_test_examples, f, indent=2, ensure_ascii=False)
+
 # %%
-import time
+if __name__ == "__main__":
+    import time
+    # word2vec模型路径
+    w2v_file = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\NLP_medical_query_corr\data\tencent-ailab-embedding-zh-d100-v0.2.0-s\tencent-ailab-embedding-zh-d100-v0.2.0-s.txt'
+    # 数据路径
+    data_dir = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\NLP_medical_query_corr\data\tencent-ailab-embedding-zh-d100-v0.2.0-s'
 
-data_args = DataTrainingArguments()
-training_args = TrainingArguments()
-model_args = ModelArguments()
-print(data_args)
-print(training_args)
-print(model_args)
-#载入词向量
-w2v_model = KeyedVectors.load_word2vec_format(data_args.w2v_file, binary=False)
+    #载入词向量
+    w2v_model = KeyedVectors.load_word2vec_format(w2v_file, binary=False)
+    processor = QQRProcessor(data_dir=data_dir)
+
+    train_dataset = QQRDataset(
+        processor.get_train_examples(), 
+        processor.get_labels(),
+        vocab_mapping=w2v_model.key_to_index,
+        max_length=32
+    )
+    eval_dataset = QQRDataset(
+        processor.get_dev_examples(),
+        processor.get_labels(),
+        vocab_mapping=w2v_model.key_to_index,
+        max_length=32
+    )
+    test_dataset = QQRDataset(
+        processor.get_test_examples(),
+        processor.get_labels(),
+        vocab_mapping=w2v_model.key_to_index,
+        max_length=32
+    )
+
+    data_collator = DataCollator()
+    # %%
+    # 创建输出结果（模型、参数、预测结果）的文件夹
+    model_name = f'semattn-{str(int(time.time()))}'
+    output_dir = os.path.join(data_dir, model_name)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    # 模型参数
+    in_feat = 100
+    dropout_prob = 0.1
+
+    # 训练参数
+    train_batch_size = 64
+    eval_batch_size = 32
+    num_train_epochs = 27
+    learning_rate = 1e-3
+    weight_decay = 5e-4
+    logging_steps = 50
+    eval_steps = 100
+    device = 'cuda'
+
+    # 初始化模型
+    print('Initialize model')
+    model = SemAttn(
+        in_feat=in_feat, 
+        num_labels=len(processor.get_labels()), 
+        dropout_prob=dropout_prob,
+        w2v_state_dict=w2v_model,
+    )
+    model.to(device)
+    # %%
+    # 训练模型
+    print('Training...')
+    best_steps, best_metric = train(
+        train_batch_size,
+        eval_batch_size,
+        num_train_epochs,
+        device,
+        output_dir,
+        learning_rate,
+        weight_decay,
+        logging_steps,
+        eval_steps,
+        model=model,
+        train_dataset=train_dataset,
+        dev_dataset=eval_dataset,
+        data_collator=data_collator
+    )
+
+    print(f'Training Finished! Best step - {best_steps} - Best accuracy {best_metric}')
+
+    best_model_path = os.path.join(output_dir, f'checkpoint-{best_steps}.pt')
+    model = SemAttn(
+        in_feat=in_feat, 
+        num_labels=len(processor.get_labels()), 
+        dropout_prob=dropout_prob,
+        w2v_state_dict=w2v_model,
+    )
+    model.load_state_dict(torch.load(best_model_path, map_location='cpu'))
+    model.to(device)
+
+    # 保存最佳模型及超参数
+    torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.bin'))
+    # torch.save(training_args, os.path.join(output_dir, 'training_args.bin'))
+
+    # %%
+    # 预测及生成预测结果（供提交到平台）
+    preds = predict(eval_batch_size, device, model, test_dataset, data_collator)
+    generate_commit(output_dir, processor.TASK, test_dataset, preds)
+
 # %%
-processor = QQRProcessor(data_dir=data_args.data_dir)
-
-train_dataset = QQRDataset(
-    processor.get_train_examples(), 
-    processor.get_labels(),
-    vocab_mapping=w2v_model.key_to_index,
-    max_length=32
-)
-eval_dataset = QQRDataset(
-    processor.get_dev_examples(),
-    processor.get_labels(),
-    vocab_mapping=w2v_model.key_to_index,
-    max_length=32
-)
-test_dataset = QQRDataset(
-    processor.get_test_examples(),
-    processor.get_labels(),
-    vocab_mapping=w2v_model.key_to_index,
-    max_length=32
-)
-
-data_collator = DataCollator()
+model.eval()
 # %%
-# 创建输出结果（模型、参数、预测结果）的文件夹
-model_name = f'semattn-{str(int(time.time()))}'
-training_args.output_dir = os.path.join(training_args.output_dir, model_name)
-if not os.path.exists(training_args.output_dir):
-    os.makedirs(training_args.output_dir, exist_ok=True)
+torch.save(model, "baseline_20220914_score7688.pth")
 # %%
-# 初始化模型
-print('Initialize model')
-model = SemAttn(
-    in_feat=model_args.in_feat, 
-    num_labels=len(processor.get_labels()), 
-    dropout_prob=model_args.dropout_prob,
-    w2v_state_dict=w2v_model,
-)
-model.to(training_args.device)
+# failed
+x_text_a_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
+x_text_b_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
+x_text_a_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
+x_text_b_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
+x_label = torch.randint(0, 3, (32, 1)).to(device)
+torch.onnx.export(model, 
+                (x_text_a_input_ids,
+                x_text_b_input_ids,
+                x_text_a_attention_mask,
+                x_text_b_attention_mask,
+                x_label),
+                "./model/baseline_20220914_score7688.onnx")
 # %%
-# 训练模型
-print('Training...')
-best_steps, best_metric = train(
-    args=training_args,
-    model=model,
-    train_dataset=train_dataset,
-    dev_dataset=eval_dataset,
-    data_collator=data_collator
-)
-
-print(f'Training Finished! Best step - {best_steps} - Best accuracy {best_metric}')
-
-best_model_path = os.path.join(training_args.output_dir, f'checkpoint-{best_steps}.pt')
-model = SemAttn(
-    in_feat=model_args.in_feat, 
-    num_labels=len(processor.get_labels()), 
-    dropout_prob=model_args.dropout_prob,
-    w2v_state_dict=w2v_model,
-)
-model.load_state_dict(torch.load(best_model_path, map_location='cpu'))
-model.to(training_args.device)
-
-# 保存最佳模型及超参数
-torch.save(model.state_dict(), os.path.join(training_args.output_dir, 'pytorch_model.bin'))
-torch.save(training_args, os.path.join(training_args.output_dir, 'training_args.bin'))
-
-# 预测及生成预测结果（供提交到平台）
-preds = predict(training_args, model, test_dataset, data_collator)
-generate_commit(training_args.output_dir, processor.TASK, test_dataset, preds)
