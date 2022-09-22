@@ -1,4 +1,7 @@
 ./NLP_medical_query_corr/data
 NLP_medical_query_corr/data/*
+NLP_medical_query_corr/model/*
 NLP_medical_query_corr/model/pytorch_model.bin
 NLP_medical_query_corr/model/attention_20220914_score7688.pth
+NLP_medical_query_corr/chinese-bert-wwm-ext/*
+NLP_medical_query_corr/res/*

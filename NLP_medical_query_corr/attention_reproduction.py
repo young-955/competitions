@@ -555,6 +555,7 @@ if __name__ == "__main__":
     w2v_file = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\NLP_medical_query_corr\data\tencent-ailab-embedding-zh-d100-v0.2.0-s\tencent-ailab-embedding-zh-d100-v0.2.0-s.txt'
     # 数据路径
     data_dir = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\NLP_medical_query_corr\data\tencent-ailab-embedding-zh-d100-v0.2.0-s'
+    model_dir = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\NLP_medical_query_corr\model'
 
     #载入词向量
     w2v_model = KeyedVectors.load_word2vec_format(w2v_file, binary=False)
@@ -583,13 +584,13 @@ if __name__ == "__main__":
     # %%
     # 创建输出结果（模型、参数、预测结果）的文件夹
     model_name = f'semattn-{str(int(time.time()))}'
-    output_dir = os.path.join(data_dir, model_name)
+    output_dir = os.path.join(model_dir, model_name)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
     # 模型参数
     in_feat = 100
-    dropout_prob = 0.1
+    dropout_prob = 0.2
 
     # 训练参数
     train_batch_size = 64
@@ -629,6 +630,8 @@ if __name__ == "__main__":
         data_collator=data_collator
     )
 
+    print(f'Util now, max gpu memory is {torch.cuda.max_memory_allocated()}')
+
     print(f'Training Finished! Best step - {best_steps} - Best accuracy {best_metric}')
 
     best_model_path = os.path.join(output_dir, f'checkpoint-{best_steps}.pt')
@@ -650,22 +653,22 @@ if __name__ == "__main__":
     preds = predict(eval_batch_size, device, model, test_dataset, data_collator)
     generate_commit(output_dir, processor.TASK, test_dataset, preds)
 
-# %%
-model.eval()
-# %%
-torch.save(model, "baseline_20220914_score7688.pth")
-# %%
-# failed
-x_text_a_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
-x_text_b_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
-x_text_a_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
-x_text_b_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
-x_label = torch.randint(0, 3, (32, 1)).to(device)
-torch.onnx.export(model, 
-                (x_text_a_input_ids,
-                x_text_b_input_ids,
-                x_text_a_attention_mask,
-                x_text_b_attention_mask,
-                x_label),
-                "./model/baseline_20220914_score7688.onnx")
-# %%
+    # %%
+    model.eval()
+    # %%
+    torch.save(model, "/model/attention_20220918_score7563.pth")
+    # %%
+    # failed
+    x_text_a_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
+    x_text_b_input_ids = torch.randint(0, 40000, (32, 32)).to(device)
+    x_text_a_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
+    x_text_b_attention_mask = torch.randint(0, 2, (32, 32)).to(device)
+    x_label = torch.randint(0, 3, (32, 1)).to(device)
+    torch.onnx.export(model, 
+                    (x_text_a_input_ids,
+                    x_text_b_input_ids,
+                    x_text_a_attention_mask,
+                    x_text_b_attention_mask,
+                    x_label),
+                    "./model/baseline_20220914_score7688.onnx")
+    # %%

@@ -1,11 +1,12 @@
+# %%
 import os
 import json
 import math
 import numpy as np
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Any
 from collections.abc import Mapping
+from typing import List, Union, Dict, Any, Mapping, Optional
 
 import torch
 import torch.nn as nn
@@ -29,7 +30,7 @@ class DataTrainingArguments:
         metadata={'help': 'The pretrained model directory'}
     )
     data_dir: str = field(
-        default='../download',
+        default='./data',
         metadata={'help': 'The data directory'}
     )
     max_length: int = field(
@@ -51,7 +52,7 @@ class DataTrainingArguments:
 class TrainingArguments:
 
     output_dir: str = field(
-        default='output_data/',
+        default='./model',
         metadata={'help': 'The output directory where the model predictions and checkpoints will be written.'}
     )
     train_batch_size: int = field(
@@ -175,7 +176,7 @@ class ClassificationDataset(Dataset):
         
         example = self.examples[index]
         label = None
-        if example.label is not None:
+        if example.label is not None and example.label != "":
             label = self.label2id[example.label]
 
         inputs = self.tokenizer(
@@ -284,14 +285,14 @@ def train(
         dataset=train_dataset, 
         batch_size=args.train_batch_size,
         shuffle=True,
-        num_workers=args.dataloader_num_workers,
+        # num_workers=args.dataloader_num_workers,
         collate_fn=data_collator
     )
     dev_dataloader = DataLoader(
         dataset=dev_dataset,
         batch_size=args.eval_batch_size,
         shuffle=False,
-        num_workers=args.dataloader_num_workers,
+        # num_workers=args.dataloader_num_workers,
         collate_fn=data_collator
     )
 
@@ -375,7 +376,7 @@ def predict(
         dataset=test_dataset,
         batch_size=args.eval_batch_size,
         shuffle=False,
-        num_workers=args.dataloader_num_workers,
+        # num_workers=args.dataloader_num_workers,
         collate_fn=data_collator
     )
     print("***** Running prediction *****")
@@ -412,64 +413,69 @@ def generate_commit(output_dir, task_name, test_dataset, preds: List[int]):
     with open(os.path.join(output_dir, f'{task_name}_test.json'), 'w', encoding='utf-8') as f:
         json.dump(pred_test_examples, f, indent=2, ensure_ascii=False)
 
-import time
-data_args = DataTrainingArguments()
-training_args = TrainingArguments()
-print(data_args)
-print(training_args)
 
-# initialize tokenizer
-tokenizer = AutoTokenizer.from_pretrained(data_args.model_dir)
+# %%
+if __name__ == "__main__":
+    import time
+    data_args = DataTrainingArguments()
+    training_args = TrainingArguments()
+    print(data_args)
+    print(training_args)
 
-# initialize dataset
-processor = QQRProcessor(data_args.data_dir)
-train_dataset = ClassificationDataset(
-    processor.get_train_examples(),
-    label_list=processor.get_labels(),
-    tokenizer=tokenizer,
-    max_length=data_args.max_length,
-)
-dev_dataset = ClassificationDataset(
-    processor.get_dev_examples(),
-    label_list=processor.get_labels(),
-    tokenizer=tokenizer,
-    max_length=data_args.max_length,
-)
-test_dataset = ClassificationDataset(
-    processor.get_test_examples(),
-    label_list=processor.get_labels(),
-    tokenizer=tokenizer,
-    max_length=data_args.max_length,
-)
+    # initialize tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(data_args.model_dir)
 
-data_collator = DefaultDataCollator()
+    # initialize dataset
+    processor = QQRProcessor(data_args.data_dir)
+    train_dataset = ClassificationDataset(
+        processor.get_train_examples(),
+        label_list=processor.get_labels(),
+        tokenizer=tokenizer,
+        max_length=data_args.max_length,
+    )
+    dev_dataset = ClassificationDataset(
+        processor.get_dev_examples(),
+        label_list=processor.get_labels(),
+        tokenizer=tokenizer,
+        max_length=data_args.max_length,
+    )
+    test_dataset = ClassificationDataset(
+        processor.get_test_examples(),
+        label_list=processor.get_labels(),
+        tokenizer=tokenizer,
+        max_length=data_args.max_length,
+    )
 
-model_name = f'{os.path.split(data_args.model_dir)[-1]}-{str(int(time.time()))}'
-training_args.output_dir = os.path.join(training_args.output_dir, model_name)
-if not os.path.exists(training_args.output_dir):
-    os.makedirs(training_args.output_dir, exist_ok=True)
+    data_collator = DefaultDataCollator()
 
-model = BertForSequenceClassification.from_pretrained(data_args.model_dir, num_labels=len(processor.get_labels()))
-model.to(training_args.device)
+    # %%
+    model_name = f'{os.path.split(data_args.model_dir)[-1]}-{str(int(time.time()))}'
+    training_args.output_dir = os.path.join(training_args.output_dir, model_name)
+    if not os.path.exists(training_args.output_dir):
+        os.makedirs(training_args.output_dir, exist_ok=True)
 
-best_steps, best_metric = train(
-    args=training_args,
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=train_dataset,
-    dev_dataset=dev_dataset,
-    data_collator=data_collator
-)
+    model = BertForSequenceClassification.from_pretrained(data_args.model_dir, num_labels=len(processor.get_labels()))
+    model.to(training_args.device)
 
-print(f'Training Finished! Best step - {best_steps} - Best accuracy {best_metric}')
+    best_steps, best_metric = train(
+        args=training_args,
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        dev_dataset=dev_dataset,
+        data_collator=data_collator
+    )
 
-best_model_dir = os.path.join(training_args.output_dir, f'checkpoint-{best_steps}')
-model = BertForSequenceClassification.from_pretrained(best_model_dir, num_labels=len(processor.get_labels()))
-model.to(training_args.device)
+    print(f'Training Finished! Best step - {best_steps} - Best accuracy {best_metric}')
 
-model.save_pretrained(training_args.output_dir)
-torch.save(training_args, os.path.join(training_args.output_dir, 'training_args.bin'))
-tokenizer.save_vocabulary(save_directory=training_args.output_dir)
+    best_model_dir = os.path.join(training_args.output_dir, f'checkpoint-{best_steps}')
+    model = BertForSequenceClassification.from_pretrained(best_model_dir, num_labels=len(processor.get_labels()))
+    model.to(training_args.device)
 
-preds = predict(training_args, model, test_dataset, data_collator)
-generate_commit(data_args.output_dir, processor.TASK, test_dataset, preds)
+    model.save_pretrained(training_args.output_dir)
+    torch.save(training_args, os.path.join(training_args.output_dir, 'training_args.bin'))
+    tokenizer.save_vocabulary(save_directory=training_args.output_dir)
+
+    # %%
+    preds = predict(training_args, model, test_dataset, data_collator)
+    generate_commit(training_args.output_dir, processor.TASK, test_dataset, preds)
