@@ -5,3 +5,10 @@ NLP_medical_query_corr/model/pytorch_model.bin
 NLP_medical_query_corr/model/attention_20220914_score7688.pth
 NLP_medical_query_corr/chinese-bert-wwm-ext/*
 NLP_medical_query_corr/res/*
+./*/data
+ELL/feedback-prize-english-language-learning.zip
+ELL/sample_submission.csv
+ELL/train.csv
+ELL/test.csv
+
+*.pyc
