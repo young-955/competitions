@@ -12,3 +12,17 @@ ELL/train.csv
 ELL/test.csv
 
 *.pyc
+
+*.xml
+*.txt
+*.jpg
+*.png
+*.ckpt
+*.index
+*.pkl
+*.tar
+*.ckpt.*
+*.zip
+*.csv
+*.pth
+*.npy
