@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np
 from PIL import Image
+import numpy as np
 
 class tamper_Dataset(Dataset):
 
@@ -19,10 +20,10 @@ class tamper_Dataset(Dataset):
         self.inputs = self.tamper_inputs + self.untamper_inputs
         # self.temper_transform = temper_transform
         # self.untemper_transform = untemper_transform
-        self.labels = np.ones(len(self.temper_inputs)) + np.zeros(len(self.untemper_inputs))
+        self.labels = np.append(np.ones(len(self.tamper_inputs)), np.zeros(len(self.untamper_inputs)))
 
     def __len__(self):
-        return len(self.temper_inputs) + len(self.untemper_inputs)
+        return len(self.tamper_inputs) + len(self.untamper_inputs)
 
     def __getitem__(self, index):
-        return Image.open(self.inputs[index]), self.labels[index]
+        return np.array(Image.open(self.inputs[index])), self.labels[index]

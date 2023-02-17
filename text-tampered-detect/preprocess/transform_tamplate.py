@@ -1,7 +1,7 @@
 import sys
-# sys.path.append('../')
-# from preprocess.loadImage import LoadImage
-from loadImage import LoadImage
+sys.path.append('../')
+from preprocess.loadImage import LoadImage
+# from loadImage import LoadImage
 from torchvision import transforms
 
 data_aug1 = transforms.Compose([
@@ -20,14 +20,14 @@ data_aug3 = transforms.Compose([
     transforms.RandomVerticalFlip(p=1),
 ])
 
-temper_transform = transforms.Compose([
+tamper_transform = transforms.Compose([
     LoadImage(),
     transforms.Resize(384),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
-untemper_transform = transforms.Compose([
+untamper_transform = transforms.Compose([
     LoadImage(),
     transforms.Resize(512),
     transforms.RandomResizedCrop(384),
