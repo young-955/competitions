@@ -16,7 +16,7 @@ from dataset import tamper_Dataset
 from torch.utils.data import DataLoader
 from loadImage import LoadImage
 
-batch_size = 32
+batch_size = 1
 epoch_num = 5
 
 train_path = r'/home/wuziyang/Projects/data/text_manipulation_detection/dataset'
@@ -48,7 +48,7 @@ model = model.cuda()
 criterion = nn.CrossEntropyLoss().cuda()
 optim = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
 
-trans = {384:T.Compose([T.ToTensor(), T.Resize(384), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
+trans = {384:T.Compose([T.Resize(384), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
          128:T.Compose([T.ToTensor(),T.RandomCrop((128, 128))]),
          224:T.Compose([T.ToTensor(),T.Resize((224,224))]),
          299:T.Compose([T.ToTensor(),T.Resize((299,299)),T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),

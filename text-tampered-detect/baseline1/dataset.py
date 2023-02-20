@@ -4,7 +4,6 @@ from PIL import Image
 import numpy as np
 
 class tamper_Dataset(Dataset):
-
     def __init__(
         self,
         temper_inputs,
