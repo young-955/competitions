@@ -1,3 +1,4 @@
+# %%
 import os
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import torch
@@ -20,11 +21,12 @@ batch_size = 1
 epoch_num = 5
 
 train_path = r'/home/wuziyang/Projects/data/text_manipulation_detection/dataset'
-val_path = r'/home/wuziyang/Projects/data/text_manipulation_detection/dataset/test'
+train_path = r'C:\Users\young\Documents\pywork\pytorch-learn\competitions\data\text_manipulation_detection\train'
+# val_path = r'/home/wuziyang/Projects/data/text_manipulation_detection/dataset/test'
 
 # make dataset
-tamper_path = os.path.join(train_path, 'tamper')
-untamper_path = os.path.join(train_path, 'untamper')
+tamper_path = os.path.join(train_path, 'tampered/imgs')
+untamper_path = os.path.join(train_path, 'untampered')
 
 tamper_list = [os.path.join(tamper_path, p) for p in os.listdir(tamper_path)]
 untamper_list = [os.path.join(untamper_path, p) for p in os.listdir(untamper_path)]
@@ -64,10 +66,9 @@ grecall = 0
 for epoch in range(epoch_num):
     for step, item in enumerate(train_loader):
         batch_image, batch_label = item
-        imgs = trans(batch_image)
-        pred = model(imgs)
-        prob = torch.nn.functional.softmax(pred)
-        loss = criterion(prob[:,1], batch_label.cuda())
+        pred = model(batch_image)
+        batch_label = torch.nn.functional.one_hot(batch_label.type(torch.long), 2).type(torch.float).cuda()
+        loss = criterion(pred, batch_label)
 
         optim.zero_grad()
         loss.backward()
@@ -75,6 +76,7 @@ for epoch in range(epoch_num):
         optim.step()
 
         gstep += 1
+        print(gstep)
         if gstep % 500 == 0:
             recall = eval(model)
             print(f'step {gstep}, recall {recall}')

@@ -10,6 +10,7 @@ ELL/feedback-prize-english-language-learning.zip
 ELL/sample_submission.csv
 ELL/train.csv
 ELL/test.csv
+Conformer/*
 
 *.pyc
 
