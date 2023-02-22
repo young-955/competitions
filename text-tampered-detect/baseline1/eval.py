@@ -18,6 +18,9 @@ from preprocess.transform_tamplate import *
 eval_tamper_path = '/home/wuziyang/Projects/data/text_manipulation_detection/dataset/test/0/data.npy'
 eval_untamper_path = '/home/wuziyang/Projects/data/text_manipulation_detection/dataset/test/1/data.npy'
 
+t_data = np.load(eval_tamper_path)
+ut_data = np.load(eval_untamper_path)
+
 def score_cls(submission_path, labels):
     """
     submission_path: 'competition1/815903/815903_2023-02-13 18:48:29.csv'
@@ -37,9 +40,7 @@ def score_cls(submission_path, labels):
     return recall * 100
 
 def eval(model):
-    t_data = np.load(eval_tamper_path)
-    ut_data = np.load(eval_untamper_path)
-
+    model.eval()
     # loss = 0.0
 
     # tamper label 1
@@ -55,7 +56,7 @@ def eval(model):
     # untamper label 0
     untamper_pred = []
     for i in ut_data:
-        print(i)
+        # print(i)
         img = tamper_transform(i)
         img = img.unsqueeze(0).float().cuda().to(torch.float32)
         res = model(img)
@@ -66,6 +67,8 @@ def eval(model):
     thres = np.percentile(np.array(untamper_pred), np.arange(90, 100, 1))
     recall = np.mean(np.greater(np.array(tamper_pred)[:, np.newaxis], thres).mean(axis=0))
     # print(f'recall:{recall}')
+
+    model.train()
     return recall
 
     # print(f'loss: {loss}')
