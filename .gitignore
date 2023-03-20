@@ -27,3 +27,8 @@ Conformer/*
 *.csv
 *.pth
 *.npy
+text-tampered-detect/baseline1/res
+text-tampered-detect/baseline1/res1
+text-tampered-detect/baseline1/train/res1
+text-tampered-detect/baseline1/data_aug/hard_un_list
+text-tampered-detect/baseline1/harddata

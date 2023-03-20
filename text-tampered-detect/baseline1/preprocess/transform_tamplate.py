@@ -20,6 +20,21 @@ data_aug3 = transforms.Compose([
     transforms.RandomVerticalFlip(p=1),
 ])
 
+data_aug4 = transforms.Compose([
+    LoadImage(),
+    transforms.RandomHorizontalFlip(p=1),
+])
+
+data_aug5 = transforms.Compose([
+    LoadImage(),
+    transforms.RandomHorizontalFlip(p=1),
+])
+
+data_aug6 = transforms.Compose([
+    LoadImage(),
+    transforms.RandomHorizontalFlip(p=1),
+])
+
 tamper_transform = transforms.Compose([
     LoadImage(),
     transforms.Resize(384),

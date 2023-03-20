@@ -39,17 +39,17 @@ np.save(os.path.join(dataset_path, 'test/1/data.npy'), test_untamper_list)
 
 print('test data ready')
 
-# 数据增强
-tamper_dataset_path = os.path.join(dataset_path, 'tamper')
-for i in train_tamper_list:
-    img = Image.open(i)
-    img.save(os.path.join(tamper_dataset_path, i))
-    i1 = data_aug1(i)
-    i1.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '1.png'))
-    i2 = data_aug2(i)
-    i2.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '2.png'))
-    i3 = data_aug3(i)
-    i3.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '3.png'))
+# # 数据增强
+# tamper_dataset_path = os.path.join(dataset_path, 'tamper')
+# for i in train_tamper_list:
+#     img = Image.open(i)
+#     img.save(os.path.join(tamper_dataset_path, i))
+#     i1 = data_aug1(i)
+#     i1.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '1.png'))
+#     i2 = data_aug2(i)
+#     i2.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '2.png'))
+#     i3 = data_aug3(i)
+#     i3.save(os.path.join(tamper_dataset_path, i.split('/')[-1].split('.')[0] + '3.png'))
 
 print('train tamper data ready')
 untamper_dataset_path = os.path.join(dataset_path, 'untamper')

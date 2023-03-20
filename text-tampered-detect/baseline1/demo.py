@@ -17,7 +17,7 @@ res_all = {}
 
 import timm
 model = torch.load('pretrain_baseline.pth',map_location=torch.device('cpu'))
-model = model.cuda()
+# model = model.cuda()
 model.eval()
 
 trans = {384:T.Compose([T.ToTensor(),T.Resize(384),T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
@@ -35,7 +35,7 @@ def detect(img_path):
     img = trans(img)
     img = img.unsqueeze(0).float()
 
-    img = img.cuda()
+    # img = img.cuda()
 
     img = img.to(torch.float32)
 

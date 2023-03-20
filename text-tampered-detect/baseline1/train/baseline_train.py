@@ -13,7 +13,7 @@ import sys
 import pickle
 import math
 from torchvision import transforms as T
-from dataset import tamper_Dataset
+from dataset import *
 from torch.utils.data import DataLoader
 from loadImage import LoadImage
 from eval import eval
@@ -21,8 +21,8 @@ from loss.focal_loss import Focal_Loss
 import timm
 
 batch_size = 16
-epoch_num = 3
-eval_step = 500
+epoch_num = 20
+eval_step = 1000
 label_weight = 10
 
 train_path = r'/home/wuziyang/Projects/data/text_manipulation_detection/dataset'
@@ -36,9 +36,11 @@ untamper_path = os.path.join(train_path, 'untamper')
 tamper_list = [os.path.join(tamper_path, p) for p in os.listdir(tamper_path)]
 untamper_list = [os.path.join(untamper_path, p) for p in os.listdir(untamper_path)]
 train_tamper_dataset = tamper_Dataset(tamper_list)
-train_tamper_loader = DataLoader(dataset=train_tamper_dataset, batch_size=batch_size, shuffle=False)
-train_untamper_dataset = tamper_Dataset(untamper_list)
-train_untamper_loader = DataLoader(dataset=train_untamper_dataset, batch_size=batch_size, shuffle=False)
+train_tamper_loader = DataLoader(dataset=train_tamper_dataset, batch_size=batch_size, shuffle=True)
+train_untamper_dataset = untamper_Dataset(untamper_list)
+train_untamper_loader = DataLoader(dataset=train_untamper_dataset, batch_size=batch_size, shuffle=True)
+total_dataset = total_Dataset(tamper_list, untamper_list)
+total_dataloader = DataLoader(dataset=total_dataset, batch_size=batch_size, shuffle=True)
 
 # val_tp_data = np.load(os.path.join(val_path, '0/data.npy'))
 # val_utp_data = np.load(os.path.join(val_path, '1/data.npy'))
@@ -50,6 +52,7 @@ res_all = {}
 # prepare model
 tamper_model = timm.create_model('tf_efficientnet_b7', pretrained=True, num_classes=2)
 untamper_model = timm.create_model('tf_efficientnet_b7', pretrained=True, num_classes=2)
+total_model = timm.create_model('tf_efficientnet_b7', pretrained=True, num_classes=2)
 # 调整finetune层
 for name, param in tamper_model.named_parameters():
     if 'bn' in name or 'classifier' in name:
@@ -58,6 +61,12 @@ for name, param in tamper_model.named_parameters():
     else:
         param.requires_grad = False
 for name, param in untamper_model.named_parameters():
+    if 'bn' in name or 'classifier' in name:
+        print(name)
+        param.requires_grad = True
+    else:
+        param.requires_grad = False
+for name, param in total_model.named_parameters():
     if 'bn' in name or 'classifier' in name:
         print(name)
         param.requires_grad = True
@@ -78,8 +87,8 @@ untamper_criterion = nn.CrossEntropyLoss().cuda()
 # criterion = Focal_Loss()
 # optim = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
 # filter(lambda p: p.requires_grad, model.parameters())
-tamper_optim = torch.optim.SGD(filter(lambda p: p.requires_grad, tamper_model.parameters()), lr=0.0001, momentum=0.9, weight_decay=0.01)
-untamper_optim = torch.optim.SGD(filter(lambda p: p.requires_grad, untamper_model.parameters()), lr=0.0001, momentum=0.9, weight_decay=0.01)
+tamper_optim = torch.optim.AdamW(filter(lambda p: p.requires_grad, tamper_model.parameters()), lr=1e-5, weight_decay=0.01)
+untamper_optim = torch.optim.AdamW(filter(lambda p: p.requires_grad, untamper_model.parameters()), lr=1e-5, weight_decay=0.01)
 
 trans = {384:T.Compose([T.Resize(384), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
          128:T.Compose([T.ToTensor(),T.RandomCrop((128, 128))]),
@@ -156,26 +165,4 @@ for epoch in range(epoch_num):
                 torch.save(untamper_model, f'model_untamper_{recall}.pth')
 torch.save(untamper_model, f'model_untamper_{recall}.pth')
 
-# trans = trans[384]
-# def detect(img_path):
-#     img = cv2.imread(img_path)
-#     img = trans(img)
-#     img = img.unsqueeze(0).float()
-
-#     img = img.cuda()
-
-#     img = img.to(torch.float32)
-
-#     res = model(img)
-#     prob = torch.nn.functional.softmax(res)
-#     return prob[:,1].detach().cpu().numpy()
-
-# test_path = '../data/text_manipulation_detection/test/imgs'
-# with open(f"submission.txt", "w") as f:
-#     for p in os.listdir(test_path):
-#         rela_path = os.path.join(test_path, p)
-#         print(rela_path)
-#         res = detect(rela_path)
-#         f.write(f"{p} {res[0]}\n")
-#         f.flush()
 
