@@ -28,13 +28,13 @@ import argparse
     'resnet101': ['layer4', 'fc'], sgd
 '''
 parser = argparse.ArgumentParser(description='manual to this script')
-parser.add_argument("--resize", type=int, default=768)
+parser.add_argument("--resize", type=int, default=512)
 args = parser.parse_args()
 
 
-batch_size = 6
-epoch_num = 20
-eval_step = 2000
+batch_size = 3
+epoch_num = 10
+eval_step = 1000
 l1_weight = 0.001
 smooth_weight = 0.05
 
@@ -50,6 +50,7 @@ untamper_path = os.path.join(train_path, 'untamper')
 # tamper_path = os.path.join(train_path, 'tampered/imgs')
 # untamper_path = os.path.join(train_path, 'untampered')
 
+#63
 
 t_trans_size = T.Compose([T.ToTensor(),T.Resize((args.resize, args.resize)), T.RandomHorizontalFlip(p=0.5), T.RandomVerticalFlip(p=0.5), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 un_trans_size = T.Compose([T.ToTensor(),T.Resize((args.resize + 200, args.resize + 200)), T.RandomCrop((args.resize, args.resize)), T.RandomVerticalFlip(p=0.5), T.RandomHorizontalFlip(p=0.5), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
@@ -81,13 +82,17 @@ res_all = {}
 # total_model = torchvision.models.resnet101(weights=torchvision.models.ResNet101_Weights.auto)
 # total_model.fc = nn.Linear(2048, 2, bias=True)
 
-total_model = torch.load('resnet101_loss_1335_recall_92375.pth')
+# tf_efficientnet_b7
+total_model = timm.create_model('tf_efficientnet_b7', pretrained=True, num_classes=2)
+# total_model.classifier = torch.nn.Sequential(total_model.classifier, torch.nn.Linear(1000, 128), torch.nn.Linear(128, 2))
+
+# total_model = torch.load('resnet101_loss_1335_recall_92375.pth')
 
 total_model = total_model.cuda()
 total_model.train()
 
-tamper_criterion = nn.CrossEntropyLoss(torch.Tensor([4, 1])).cuda()
-# tamper_criterion = nn.SmoothL1Loss().cuda()
+# tamper_criterion = nn.CrossEntropyLoss(torch.Tensor([4, 1])).cuda()
+tamper_criterion = nn.SmoothL1Loss().cuda()
 
 total_optim = torch.optim.SGD(filter(lambda p: p.requires_grad, total_model.parameters()), lr=1e-5, momentum=0.9, weight_decay=1e-5)
 
@@ -123,7 +128,7 @@ for epoch in range(epoch_num):
         # print(gstep)
         if gstep % eval_step == 0:
             gloss /= cur_step
-            recall, cluster_dis = eval_pseudo(total_model, eval_trans_size, hard=True, pseudo_path='/home/wuziyang/Projects/data/text_manipulation_detection/resnet_pseudo_label')
+            recall, cluster_dis = eval_pseudo(total_model, eval_trans_size, hard=False, pseudo_path='/home/wuziyang/Projects/data/text_manipulation_detection/resnet_pseudo_label')
             print(f'step {gstep}, epoch {epoch}, recall {recall}, aver loss: {gloss}, cluster_dis: {cluster_dis}')
             torch.save(total_model, f'model_loss_{gloss}_recall_{recall}_cluster_dis_{cluster_dis}.pth')
             gloss = 0

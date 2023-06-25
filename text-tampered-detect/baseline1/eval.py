@@ -189,16 +189,16 @@ def eval_pseudo(model, trans=tamper_transform, hard=False, pseudo_path=""):
         img = trans(i)
         img = img.unsqueeze(0).float().cuda().to(torch.float32)
         res = model(img)
-        prob = torch.nn.functional.softmax(res)
+        prob = torch.nn.functional.softmax(res, dim=1)
         pred_res = prob[:,1].detach().cpu().numpy()[0]
         unlabel_pred.append(pred_res)
 
-        if pred_res < pseudo_down_limit:
-            name = i.split('/')[-1]
-            shutil.copyfile(i, os.path.join(pseudo_path, f'untamper/{name}'))
-        if pred_res > pseudo_up_limit:
-            name = i.split('/')[-1]
-            shutil.copyfile(i, os.path.join(pseudo_path, f'tamper/{name}'))
+        # if pred_res < pseudo_down_limit:
+        #     name = i.split('/')[-1]
+        #     shutil.copyfile(i, os.path.join(pseudo_path, f'untamper/{name}'))
+        # if pred_res > pseudo_up_limit:
+        #     name = i.split('/')[-1]
+        #     shutil.copyfile(i, os.path.join(pseudo_path, f'tamper/{name}'))
 
         if len(unlabel_pred) > 2:
             cluster_res = KMeans(n_clusters=2,random_state=0).fit(np.array(unlabel_pred).reshape(-1, 1))
@@ -210,7 +210,7 @@ def eval_pseudo(model, trans=tamper_transform, hard=False, pseudo_path=""):
         img = trans(i)
         img = img.unsqueeze(0).float().cuda().to(torch.float32)
         res = model(img)
-        prob = torch.nn.functional.softmax(res)
+        prob = torch.nn.functional.softmax(res, dim=0)
         pred_res = prob[:,1].detach().cpu().numpy()[0]
         tamper_pred.append(pred_res)
 
@@ -223,6 +223,7 @@ def eval_pseudo(model, trans=tamper_transform, hard=False, pseudo_path=""):
                     del hard_t_example[hard_max_value]
                     hard_t_example[pred_res] = i
                     hard_max_value = max(hard_t_example.keys())
+
     for i in pseut_data:
         img = trans(i)
         img = img.unsqueeze(0).float().cuda().to(torch.float32)
@@ -314,4 +315,7 @@ def gen_test_data():
 
 
 if __name__ == "__main__":
-    gen_test_data()
+    # gen_test_data()
+    m = torch.load('../baseline1/train/model_0.7877773995866837.pth')
+    eval_trans_size = T.Compose([LoadImage(), T.ToTensor(),T.Resize((512, 512)), T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+    eval_pseudo(m, eval_trans_size)

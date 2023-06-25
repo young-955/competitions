@@ -12,6 +12,9 @@ ELL/train.csv
 ELL/test.csv
 Conformer/*
 
+monster_detect/data/*
+monster_detect/condaenv/*
+
 *.pyc
 
 *.xml
