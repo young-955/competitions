@@ -5,39 +5,14 @@ import copy
 import pandas as pd
 import os
 import numpy as np
+from config import *
 
-def read_text(path):
-    res = []
-    base_path = os.path.dirname(os.path.dirname(path))
-    with open(path, 'r') as f:
-        for p in f.readlines():
-            p = p.replace('\n', '').split(',')
-            p[0] = os.path.join(base_path, p[0])
-            p[1] = int(p[1])
-            res.append(p)
-    return res
-
-def read_csv(path):
-    res = []
-    base_path = os.path.join(os.path.dirname(path), 'train')
-    csv_p = pd.read_csv(path)[['filename', 'label']].drop_duplicates().values
-    for p in csv_p:
-        p[0] = os.path.join(base_path, p[0])
-        res.append(p)
-    return res
 
 # load model
 sam = sam_model_registry["default"](checkpoint="./seg/model/sam_vit_h_4b8939.pth")
 mask_generator = SamAutomaticMaskGenerator(sam)
 mask_generator.predictor.model.cuda()
 
-# 物料是否偏移
-class1_train_data = read_text(r'./data/data/class1/class1_train.txt')
-class2_train_data = read_text(r'./data/data/class2/class2_train.txt')
-# 全部物料偏移
-class3_train_data = read_csv(r'./data/data/class3/train_infos.csv')
-# 全部物料不偏移
-normal_train_data = read_text(r'./data/data/normal/normal_train.txt')
 
 
 def save_seg(image, masks):
@@ -65,22 +40,46 @@ def seg_img(model, image):
 def get_max_mask(masks):
     max_area = [0, 0]
     next_area = [0, 0]
+    left_area = [0, 999999999]
+    right_area = [0, 999999999]
     for i, m in enumerate(masks):
         area = m['bbox'][2] * m['bbox'][3]
-        if area > next_area[1]:
-            if area > max_area[1]:
-                next_area = copy.deepcopy(max_area)
-                max_area[0] = i
-                max_area[1] = area
+        # 分割结果需要在图像中间部分，不可过大，且不可过半
+        if m['bbox'][0] + m['bbox'][2] > m['crop_box'][2] / 2:
+            if area > next_area[1]:
+                if area > max_area[1]:
+                    next_area = copy.deepcopy(max_area)
+                    max_area[0] = i
+                    max_area[1] = area
+                else:
+                    next_area[0] = i
+                    next_area[1] = area
+        # 分割效果不佳，手动处理，取左右两边与中间部分比较计算偏移
+        if m['bbox'][3] > m['crop_box'][3] * 0.8:
+            # 左边
+            if m['bbox'][0] < m['crop_box'][2] / 2:
+                if area < left_area[1]:
+                    left_area[0] = i
+                    left_area[1] = area
+            # 右边
             else:
-                next_area[0] = i
-                next_area[1] = area
-    return masks[max_area[0]], masks[next_area[0]]
-    
+                if area < right_area[1]:
+                    right_area[0] = i
+                    right_area[1] = area
+
+    return masks[max_area[0]], masks[next_area[0]], masks[left_area[0]], masks[right_area[0]]
+
 # 计算两端偏移像素差值和比例
-def get_offset_diff(max_mask, next_mask):
-    offset1 = next_mask['bbox'][0] - max_mask['bbox'][0]
-    offset2 = max_mask['bbox'][0] + max_mask['bbox'][2] - next_mask['bbox'][0] - next_mask['bbox'][2]
+def get_offset_diff(max_mask, next_mask, left_mask, right_mask):
+    # offset1 = next_mask['bbox'][0] - max_mask['bbox'][0]
+    # offset2 = max_mask['bbox'][0] + max_mask['bbox'][2] - next_mask['bbox'][0] - next_mask['bbox'][2]
+
+    # abs_off_diff = abs(offset1 - offset2)
+    # off_diff_rate = abs_off_diff / (offset1 + offset2) * 2
+
+    # if off_diff_rate > 0.2:
+    offset1 = next_mask['bbox'][0] - left_mask['bbox'][0]
+    offset2 = right_mask['bbox'][0] + right_mask['bbox'][2] - next_mask['bbox'][0] - next_mask['bbox'][2]
 
     abs_off_diff = abs(offset1 - offset2)
     off_diff_rate = abs_off_diff / (offset1 + offset2) * 2
@@ -89,8 +88,8 @@ def get_offset_diff(max_mask, next_mask):
 
 # 判断是否偏移
 def judge_offset(masks):
-    max_mask, next_mask = get_max_mask(masks)    
-    return get_offset_diff(max_mask, next_mask)
+    max_mask, next_mask, left_mask, right_mask = get_max_mask(masks)    
+    return get_offset_diff(max_mask, next_mask, left_mask, right_mask)
 
 # 跑偏检测测试
 def offset_train_test(model, data):
